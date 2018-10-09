@@ -21,11 +21,14 @@ class TestDiscover:
         sock.recvfrom.return_value = (
             b'SERVER: Linux UPnP/1.0 Sonos/26.1-76230 (ZPS3)', [IP_ADDR]
         )  # (data, # address)
-        # Each time gethostbyname is called, it gets a different value
-        monkeypatch.setattr('socket.gethostbyname',
-            Mock(side_effect=['192.168.1.15', '192.168.1.16']))
-        # Stop getfqdn from working, to avoud network access
-        monkeypatch.setattr('socket.getfqdn', Mock())
+        monkeypatch.setattr('netifaces.interfaces',
+            Mock(side_effect=[['eth0','eth1']]))
+        monkeypatch.setattr('netifaces.ifaddresses',
+            Mock(side_effect=[
+                    {66: [{'addr': '192.168.1.15'}]},
+                    {66: [{'addr': '192.168.1.16'}]},
+                ]))
+        monkeypatch.setattr('netifaces.AF_INET', 66)
         # prevent creation of soco instances
         monkeypatch.setattr('soco.config.SOCO_CLASS', Mock())
         # Fake return value for select
@@ -46,9 +49,11 @@ class TestDiscover:
 
         # Now test include_visible parameter. include_invisible=True should
         # result in calling SoCo.all_zones etc
-        # Reset gethostbyname, to always return the same value
-        monkeypatch.setattr('socket.gethostbyname',
-            Mock(return_value='192.168.1.15'))
+        # Reset interfaces to always return the same values
+        monkeypatch.setattr('netifaces.interfaces',
+            Mock(side_effect=lambda: ['eth0']))
+        monkeypatch.setattr('netifaces.ifaddresses',
+            Mock(side_effect=lambda _: {66: [{'addr': '192.168.1.15'}]}))
         config.SOCO_CLASS.return_value = Mock(
             all_zones='ALL', visible_zones='VISIBLE')
         assert discover(include_invisible=True) == 'ALL'
